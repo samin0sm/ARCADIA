@@ -1,1 +1,7 @@
-package com.gamingevents.entity; public enum RegistrationStatus { REGISTERED, CANCELLED }
+package com.gamingevents.entity;
+
+public enum RegistrationStatus {
+    REGISTERED,
+    APPROVED,
+    CANCELLED
+}

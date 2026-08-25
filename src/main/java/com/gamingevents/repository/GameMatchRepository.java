@@ -1,5 +1,18 @@
 package com.gamingevents.repository;
-import com.gamingevents.entity.*;
-import java.util.*;
+
+import com.gamingevents.entity.GameMatch;
 import org.springframework.data.jpa.repository.JpaRepository;
-public interface GameMatchRepository extends JpaRepository<GameMatch,Long>{List<GameMatch> findByTournamentId(Long id);}
+
+import java.util.List;
+
+public interface GameMatchRepository extends JpaRepository<GameMatch, Long> {
+    List<GameMatch> findByTournamentId(Long id);
+
+    List<GameMatch> findByTournamentIdOrderByRoundNumberAscIdAsc(Long id);
+
+    List<GameMatch> findByTournamentIdAndRoundNumber(Long tournamentId, int roundNumber);
+
+    boolean existsByTournamentId(Long tournamentId);
+
+    long countByTournamentIdAndStatus(Long tournamentId, com.gamingevents.entity.MatchStatus status);
+}
