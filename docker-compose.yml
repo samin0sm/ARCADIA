@@ -4,9 +4,9 @@ services:
     container_name: gaming-events-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: gaming_events
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-gaming_events}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -30,12 +30,12 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gaming_events
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/gaming_events}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
       SPRING_FLYWAY_ENABLED: "true"
-      APP_JWT_SECRET: supersecretkey123456789012345678901234567890
-      APP_JWT_EXPIRATION_MS: 86400000
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-supersecretkey123456789012345678901234567890}
+      APP_JWT_EXPIRATION_MS: ${APP_JWT_EXPIRATION_MS:-86400000}
     ports:
       - "8080:8080"
     networks:
@@ -45,10 +45,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
     container_name: gaming-events-frontend
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
     ports:
       - "80:80"
       - "3000:80"
