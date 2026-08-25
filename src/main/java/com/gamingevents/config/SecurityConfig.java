@@ -71,7 +71,7 @@ public class SecurityConfig {
                 .httpBasic(b -> b.disable())
                 .formLogin(f -> f.disable())
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/health", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/games/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shop/items").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/tournaments/my").authenticated()

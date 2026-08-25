@@ -13,15 +13,12 @@ spring:
   jpa:
     hibernate.ddl-auto: validate
     open-in-view: false
+    show-sql: false
   flyway:
     enabled: true
     baseline-on-migrate: true
 
 app:
   jwt:
-    secret: ${APP_JWT_SECRET:${JWT_SECRET:very-secure-arcadia-jwt-token-secret-key-for-dev-32bytes-long}}
+    secret: ${APP_JWT_SECRET:${JWT_SECRET}}
     expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
-
-springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
