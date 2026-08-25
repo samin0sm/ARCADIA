@@ -23,12 +23,36 @@ public final class TournamentDtos {
             Long id,
             String name,
             String gameName,
+            String description,
             String organizer,
+            String format,
             BigDecimal entryFee,
             int maxPlayers,
+            int currentParticipants,
             Instant startDate,
             TournamentStatus status,
             String champion) {}
+
+    public record MyTournamentResponse(
+            Long tournamentId,
+            String name,
+            String gameName,
+            String description,
+            String format,
+            TournamentStatus tournamentStatus,
+            RegistrationStatus registrationStatus,
+            Instant startDate,
+            BigDecimal entryFee,
+            int currentParticipants,
+            int maxPlayers,
+            String matchScheduleNote) {}
+
+    public record JoinResponse(
+            String message,
+            Long tournamentId,
+            String tournamentName,
+            RegistrationStatus registrationStatus,
+            Instant registeredAt) {}
 
     public record OrganizerResponse(
             Long id,

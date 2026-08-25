@@ -3,9 +3,12 @@ package com.gamingevents.service;
 import com.gamingevents.dto.TournamentDtos.*;
 import com.gamingevents.entity.*;
 import com.gamingevents.repository.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -32,76 +35,160 @@ public class TournamentService {
     public Response create(Request r, String email) {
         Tournament t = new Tournament();
         copy(t, r);
-        t.setOrganizer(users.findByEmail(email).orElseThrow());
+        t.setStatus(TournamentStatus.UPCOMING);
+        t.setOrganizer(users.findByEmail(email.toLowerCase()).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Organizer not found")));
         return map(tournaments.save(t));
     }
 
-    public List<Response> list(String q) {
-        return (q == null || q.isBlank()
-                ? tournaments.findAll()
-                : tournaments.findByNameContainingIgnoreCaseOrGameNameContainingIgnoreCase(q, q))
-                .stream()
-                .map(this::map)
-                .toList();
+    public List<Response> list(String q, String game) {
+        List<Tournament> list = tournaments.findAll();
+
+        if (game != null && !game.isBlank()) {
+            list = list.stream()
+                    .filter(t -> t.getGameName() != null && t.getGameName().equalsIgnoreCase(game.trim()))
+                    .toList();
+        }
+
+        if (q != null && !q.isBlank()) {
+            String query = q.trim().toLowerCase();
+            list = list.stream()
+                    .filter(t -> (t.getName() != null && t.getName().toLowerCase().contains(query))
+                            || (t.getGameName() != null && t.getGameName().toLowerCase().contains(query)))
+                    .toList();
+        }
+
+        return list.stream().map(this::map).toList();
     }
 
     public Response get(Long id) {
-        return map(tournaments.findById(id).orElseThrow());
+        Tournament t = tournaments.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + id));
+        return map(t);
+    }
+
+    private void verifyOrganizerOrAdmin(Tournament tournament, String email) {
+        User user = users.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        if (user.getRole() == Role.ADMIN) {
+            return;
+        }
+        if (!tournament.getOrganizer().getEmail().equals(email)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this tournament");
+        }
     }
 
     public Response update(Long id, Request r, String email) {
-        Tournament t = tournaments.findById(id).orElseThrow();
-        if (!t.getOrganizer().getEmail().equals(email)) {
-            throw new IllegalArgumentException("You do not own this tournament");
-        }
+        Tournament t = tournaments.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + id));
+        verifyOrganizerOrAdmin(t, email);
         copy(t, r);
         return map(tournaments.save(t));
     }
 
     public void delete(Long id, String email) {
-        Tournament t = tournaments.findById(id).orElseThrow();
-        if (!t.getOrganizer().getEmail().equals(email)) {
-            throw new IllegalArgumentException("You do not own this tournament");
-        }
+        Tournament t = tournaments.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + id));
+        verifyOrganizerOrAdmin(t, email);
         tournaments.delete(t);
     }
 
     @Transactional
-    public void join(Long id, String email) {
-        Tournament t = tournaments.findById(id).orElseThrow();
+    public JoinResponse join(Long id, String email) {
+        User user = users.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required"));
+
+        if (!user.isEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is disabled");
+        }
+
+        if (user.getRole() != Role.PLAYER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only players can register for tournaments");
+        }
+
+        Tournament t = tournaments.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + id));
+
         if (t.getStatus() != TournamentStatus.UPCOMING) {
-            throw new IllegalArgumentException("Tournament is not open for registration");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tournament registration is closed (status: " + t.getStatus() + ")");
         }
-        PlayerProfile p = profiles.findByUserId(users.findByEmail(email).orElseThrow().getId())
-                .orElseThrow(() -> new IllegalArgumentException("Player profile required"));
+
+        if (t.getStartDate() != null && t.getStartDate().isBefore(Instant.now())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Registration deadline has passed");
+        }
+
+        PlayerProfile p = profiles.findByUserId(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Player profile required"));
+
         if (registrations.existsByPlayerAndTournament(p, t)) {
-            throw new IllegalArgumentException("Already registered");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You are already registered for this tournament");
         }
+
         if (registrations.countByTournament(t) >= t.getMaxPlayers()) {
-            throw new IllegalArgumentException("Tournament is full");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tournament is already full (Max: " + t.getMaxPlayers() + ")");
         }
+
         Registration r = new Registration();
         r.setPlayer(p);
         r.setTournament(t);
+        r.setStatus(RegistrationStatus.REGISTERED);
+        r.setRegistrationDate(Instant.now());
         registrations.save(r);
+
+        return new JoinResponse(
+                "Registration confirmed! You have joined " + t.getName(),
+                t.getId(),
+                t.getName(),
+                r.getStatus(),
+                r.getRegistrationDate()
+        );
+    }
+
+    public List<MyTournamentResponse> myTournaments(String email) {
+        User user = users.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required"));
+        PlayerProfile profile = profiles.findByUserId(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Player profile required"));
+
+        return registrations.findByPlayer(profile).stream()
+                .map(r -> {
+                    Tournament t = r.getTournament();
+                    return new MyTournamentResponse(
+                            t.getId(),
+                            t.getName(),
+                            t.getGameName(),
+                            t.getDescription(),
+                            t.getFormat(),
+                            t.getStatus(),
+                            r.getStatus(),
+                            t.getStartDate(),
+                            t.getEntryFee(),
+                            (int) registrations.countByTournament(t),
+                            t.getMaxPlayers(),
+                            "Matches will appear when the tournament schedule is published."
+                    );
+                })
+                .toList();
     }
 
     public List<OrganizerResponse> listForOrganizer(String email) {
-        User organizer = users.findByEmail(email).orElseThrow();
-        return tournaments.findByOrganizer(organizer).stream().map(this::mapOrganizer).toList();
+        User user = users.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        List<Tournament> list = (user.getRole() == Role.ADMIN)
+                ? tournaments.findAll()
+                : tournaments.findByOrganizer(user);
+        return list.stream().map(this::mapOrganizer).toList();
     }
 
     public StatsResponse getStats(Long id, String email) {
-        Tournament t = tournaments.findById(id).orElseThrow();
-        if (!t.getOrganizer().getEmail().equals(email)) {
-            throw new IllegalArgumentException("You do not own this tournament");
-        }
+        Tournament t = tournaments.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + id));
+        verifyOrganizerOrAdmin(t, email);
         return buildStats(t);
     }
 
     public DashboardStatsResponse getDashboardStats(String email) {
-        User organizer = users.findByEmail(email).orElseThrow();
-        List<Tournament> hosted = tournaments.findByOrganizer(organizer);
+        User organizer = users.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        List<Tournament> hosted = (organizer.getRole() == Role.ADMIN)
+                ? tournaments.findAll()
+                : tournaments.findByOrganizer(organizer);
 
         int totalRegistrations = 0;
         int approvedPlayers = 0;
@@ -125,13 +212,12 @@ public class TournamentService {
 
     @Transactional
     public RegistrationResponse approveRegistration(Long registrationId, String email) {
-        Registration registration = registrations.findById(registrationId).orElseThrow();
+        Registration registration = registrations.findById(registrationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Registration not found with ID: " + registrationId));
         Tournament tournament = registration.getTournament();
-        if (!tournament.getOrganizer().getEmail().equals(email)) {
-            throw new IllegalArgumentException("You do not own this tournament");
-        }
+        verifyOrganizerOrAdmin(tournament, email);
         if (registration.getStatus() == RegistrationStatus.CANCELLED) {
-            throw new IllegalArgumentException("Cannot approve a cancelled registration");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot approve a cancelled registration");
         }
         registration.setStatus(RegistrationStatus.APPROVED);
         registrations.save(registration);
@@ -139,15 +225,15 @@ public class TournamentService {
     }
 
     public List<RegistrationResponse> getRegistrations(Long tournamentId, String email) {
-        Tournament t = tournaments.findById(tournamentId).orElseThrow();
-        if (!t.getOrganizer().getEmail().equals(email)) {
-            throw new IllegalArgumentException("You do not own this tournament");
-        }
+        Tournament t = tournaments.findById(tournamentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + tournamentId));
+        verifyOrganizerOrAdmin(t, email);
         return registrations.findByTournament(t).stream().map(this::mapRegistration).toList();
     }
 
     public List<RegistrationResponse> getPublicRoster(Long tournamentId) {
-        Tournament t = tournaments.findById(tournamentId).orElseThrow();
+        Tournament t = tournaments.findById(tournamentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tournament not found with ID: " + tournamentId));
         return registrations.findByTournament(t).stream()
                 .filter(r -> r.getStatus() != RegistrationStatus.CANCELLED)
                 .map(this::mapRegistration)
@@ -205,9 +291,12 @@ public class TournamentService {
                 t.getId(),
                 t.getName(),
                 t.getGameName(),
+                t.getDescription(),
                 t.getOrganizer().getName(),
+                t.getFormat(),
                 t.getEntryFee(),
                 t.getMaxPlayers(),
+                (int) registrations.countByTournament(t),
                 t.getStartDate(),
                 t.getStatus(),
                 t.getChampion() != null ? t.getChampion().getUsername() : null);

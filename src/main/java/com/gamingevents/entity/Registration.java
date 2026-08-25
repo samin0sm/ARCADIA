@@ -39,4 +39,6 @@ public class Registration {
     public void setStatus(RegistrationStatus v) { status = v; }
 
     public Instant getRegistrationDate() { return registrationDate; }
+
+    public void setRegistrationDate(Instant v) { registrationDate = v; }
 }

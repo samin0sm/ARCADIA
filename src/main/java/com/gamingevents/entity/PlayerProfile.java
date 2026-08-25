@@ -24,6 +24,8 @@ public class PlayerProfile {
 
     public Long getId() { return id; }
 
+    public void setId(Long v) { id = v; }
+
     public User getUser() { return user; }
 
     public void setUser(User v) { user = v; }
@@ -53,6 +55,8 @@ public class PlayerProfile {
     public int getRankingPoints() { return rankingPoints; }
 
     public int getTokenBalance() { return tokenBalance; }
+
+    public void setTokenBalance(int v) { tokenBalance = v; }
 
     public void addTokens(int amount) { tokenBalance += amount; }
 

@@ -1,9 +1,11 @@
-ALTER TABLE matches MODIFY status ENUM('SCHEDULED','LIVE','COMPLETED') NOT NULL DEFAULT 'SCHEDULED';
+ALTER TABLE matches DROP CONSTRAINT IF EXISTS matches_status_check;
+ALTER TABLE matches ADD CONSTRAINT matches_status_check CHECK (status IN ('SCHEDULED','LIVE','COMPLETED'));
 ALTER TABLE matches ADD COLUMN player_one_score INT NULL;
 ALTER TABLE matches ADD COLUMN player_two_score INT NULL;
 ALTER TABLE matches ADD COLUMN round_number INT NOT NULL DEFAULT 1;
 
-ALTER TABLE registrations MODIFY status ENUM('REGISTERED','APPROVED','CANCELLED') NOT NULL DEFAULT 'REGISTERED';
+ALTER TABLE registrations DROP CONSTRAINT IF EXISTS registrations_status_check;
+ALTER TABLE registrations ADD CONSTRAINT registrations_status_check CHECK (status IN ('REGISTERED','APPROVED','CANCELLED'));
 
 ALTER TABLE player_profiles ADD COLUMN token_balance INT NOT NULL DEFAULT 0;
 

@@ -38,7 +38,7 @@ public class Tournament {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TournamentStatus status = TournamentStatus.PENDING;
+    private TournamentStatus status = TournamentStatus.UPCOMING;
 
     @ManyToOne
     @JoinColumn(name = "champion_id")
@@ -48,6 +48,8 @@ public class Tournament {
     private Instant createdAt = Instant.now();
 
     public Long getId() { return id; }
+
+    public void setId(Long v) { id = v; }
 
     public User getOrganizer() { return organizer; }
 

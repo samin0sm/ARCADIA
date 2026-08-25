@@ -15,4 +15,6 @@ public interface GameMatchRepository extends JpaRepository<GameMatch, Long> {
     boolean existsByTournamentId(Long tournamentId);
 
     long countByTournamentIdAndStatus(Long tournamentId, com.gamingevents.entity.MatchStatus status);
+
+    List<GameMatch> findByPlayerOneOrPlayerTwoOrderByIdDesc(com.gamingevents.entity.PlayerProfile p1, com.gamingevents.entity.PlayerProfile p2);
 }
