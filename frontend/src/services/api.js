@@ -1,10 +1,18 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    let url = envUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+      url = 'https://' + url;
+    }
+    if (!url.endsWith('/api') && !url.endsWith('/api/')) {
+      url = url.replace(/\/+$/, '') + '/api';
+    }
+    return url;
   }
-  // When running in production behind Nginx or custom domain, use relative /api
+  // When running in production behind Nginx, use relative /api
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     return '/api';
   }
